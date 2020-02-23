@@ -1,0 +1,1191 @@
+---
+# output: github_document
+output: 
+  pdf_document:
+    keep_tex: true
+    fig_caption: true
+    latex_engine: pdflatex
+    template: svm-latex-ms.tex
+    number_sections: true
+title: | 
+        | USO DE VARIABLES MORFOMETRICAS EN EL ANALISIS DE LA DENSIDAD DE DRENAJE DE LAS MICROCUENCAS DE PRIMER ORDEN (STRAHLER) DEL RIO OCOA EN LA REPUBLICA DOMINICANA
+  
+author:
+- name: ALBA CADETE, MIREL VOLCAN, YOENNY URBAEZ
+  affiliation: Estudiantes, Maestría de Teledetección y Ciencias de la Información Geográfica, Universidad Autónoma de Santo Domingo (UASD)
+abstract: "El análisis parte de datos de observación de 33 variables morfométricas de la cuenca del río Ocoa en la República Dominicana, previamente procesadas mediante el módulo r.basin del software QGIS; mediante la aplicación de Análisis Exploratorio de Datos Espaciales por el software R, se determinó la correlación como criterio para seleccionar cuales variables podían ser de utilidad para el diseño de un modelo espacial. A partir de allí se establecieron las hipótesis de dependencia/autocorrelación y heterogeneidad espacial entre la densidad de drenaje como variable dependiente y las variables independientes seleccionadas para ser comprobadas en el análisis de los datos espaciales. Finalmente, se aplicó la técnica de interpolación espacial kriging ordinario, utilizando los 3027 puntos espaciales de la variable dependiente"
+keywords: "análisis de datos espaciales, modelización, kriging, geomorfología, cuenca Ocoa"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+geometry: margin=1in
+fontfamily: mathpazo
+fontsize: 11pt
+# spacing: double
+bibliography: bibliography.bib
+# csl: plos-one.csl
+csl: apa.csl
+header-includes:
+  \usepackage{pdflscape}
+  \newcommand{\blandscape}{\begin{landscape}}
+  \newcommand{\elandscape}{\end{landscape}}
+---
+# Introducción
+La necesidad de estudiar y planificar el espacio ha conllevado a la geografía a experimentar un avance articulado a la estadística, los Sistemas de Información Geográfica (SIG) y la estadística aplicada. Por otro lado, el estudio del ciclo hidrológico a nivel de cuenca hidrográfica como elemento fundamental de abastecimiento de agua en los territorios que es el caso que nos ocupa en este análisis espacial del área de la cuenca del río Ocoa, cuyo objetivo general es la mera aplicación de un ejercicio académico para el logro del aprendizaje del uso de algoritmos informáticos del software libre R utilizando variables geomorfológicas de esta cuenca del Caribe en la República Dominicana.
+
+# Preguntas de investigación
+¿Qué patrón de asociación puede determinarse a partir de los datos de las variables geomorfológicas disponibles de la cuenca del río Ocoa en la República Dominicana?
+
+¿Los resultados de las pruebas estadísticas de correlación de las variables seleccionadas, permiten predecir escenarios de comportamiento de la cuenca del río Ocoa a través del diseño de un modelo basado en dichas variables?
+
+# Metodología
+Los datos con los cuales se desarrolla el análisis fueron los archivos pre procesados (R. Basin-QGIS) de las características geomorfológicas del área de la cuenca del río Ocoa en formato .gpkg y los respectivos archivos poligonales del área de estudio, en el mismo formato.
+
+El criterio de orden de cauces seleccionado fue el de @Quantitativeanalysis, el cual consiste en asignarle un número a cada uno de los cauces tributarios en forma creciente, desde el inicio de la línea divisoria o parte aguas hasta llegar al cauce principal, de manera que el número final señale el orden de la red de drenaje en la cuenca.
+
+Este concepto de orden de cauces tomado de @AnalisisMorfometrico quien menciona que Horton (1945) y @Quantitativeanalysis definen una serie de leyes morfométricas relacionando el número de cauces, sus longitudes, pendientes y áreas de drenaje en una cuenca con el orden de cauces, basándose, por ejemplo, en que la longitud de los cauces afecta claramente a las ratios de recogida de aguas y su transmisión aguas abajo para el caso de la longitud, de igual modo para el resto de las variables.
+
+Por su parte @Quantitativeanalysis afirma que las propiedades adimensionales de la cuenca incluyen números de orden de la corriente, relaciones de bifurcación, ángulos de unión, pendientes máximas del lado del valle, pendientes medias de las superficies de las cuencas hidrográficas, gradientes de canales, relaciones de relieve y propiedades e integrales de curva hipsométrica. En otras palabras, si existe similitud geométrica entre dos cuencas, indistintamente de su tamaño, los valores de estas variables serán idénticos, excepto la longitud de curso que si guarda relación con el tamaño de la cuenca.
+
+Tabla 1. Variables seleccionadas para el análisis
+
+|CODIGO|VARIABLES INDEPENDIENTES|CONCEPTO|FORMULA|
+|------|----------------------|---------------------------------------|----------|
+|MS|Mean_Slope|La pendiente promedio del canal principal (km) calculada mediante el producto de la longitud de las curvas de nivel (Li) y su equidistancia (E), dividida entre en área de la curva, multiplicada por 100 (%) y expresada en porcentaje.|MS=100*SUMli*E/A|
+|TS |Total_Stream_Length_km|La longitud total del canal principal en kilómetros cuadrados (L) corresponde a la longitud más larga de la sucesión de segmentos que conectan una fuente a la salida de la cuenca|TS=L|
+| SF| Shape_Factor |El factor de forma relaciona el área de la cuenca (A) y el cuadrado de la longitud del canal principal (L^2^).|SF=A/L^2^|
+|ER   |Elongation_Ratio |La razón de alargamiento relaciona el diámetro del circulo equivalente al perímetro de la cuenca (D) y la longitud del canal principal en km^2^ (L).   |ER=D/L |
+|DD  |Drainage_Density|La densidad de drenaje (DD) relaciona la longitud total de las ramificaciones del río (l) y el área de la cuenca en km^2^|DD=SUM l/A|
+|LogDD |VARIABLE INDEPENDIENTE|Transformación logarítmica, dado el sesgo encontrado en las pruebas de dispersión de Moran de la variable DD.|Log (DD)| 
+
+Fuente: Elaboración propia a partir de @physiograficCharacterization
+
+
+Las variables fueron seleccionadas atendiendo a sus coeficientes de correlación obtenidos mediante la función `cor` de R, dentro de las microcuencas de orden 1, resultando con mayor valor de correlación la variable Densidad de drenaje con Elongation ratio y Shape factor. Sin embargo, se incluyeron dos variables adicionales para robustecer el análisis y modelo resultante. Las dos variables adicionales fueron Total stream length y Mean slope.
+
+El procesamiento de los datos puede esquematizarse de la siguiente forma (Script reproducible en archivo adjunto):
+
+#Importación, organización de datos e interoperabilidad.
+Los datos de variables geomorfológicas en formato .gpkg y los polígonos en formato .geojson fueron cargados al RStudio conectado al servidor principal (New York). Posteriormente leídos y georeferenciados en el sistema de coordenadas EPSG:32619 WGS 84/UTM zona 19N, convertidos en un simple feature `sf` por ser un formato no topológico para almacenar datos geoespaciales en una base de datos el cual define funciones para acceder, operar y procesar datos. Esto a los fines de ser analizados con R.
+
+Posteriormente, se seleccionó el grupo de microcuencas pertenecientes cuencas de primer orden (clasificación de Strahler) y organizadas en columnas numéricas con sus respectivos valores y depurados de celdas vacías (NA). A partir de la organización de estos primeros datos se determinó la correlación de variables del estudio a los fines de seleccionar aquellas idóneas para el modelado, atendiendo a su índice de correlación.
+
+Una vez obtenidos los índices, se seleccionó el grupo de variables con índice de correlación mayor a 0.5 y no tan próximos a 1 (correlación perfecta) que fueran coherentemente relacionables sometiéndolas a las respectivas pruebas de hipótesis en un modelo espacial de cuenca hidrográfica. Es así como se seleccionan la variable densidad de drenaje en función de las variables independientes factor de forma, relación de elongación, longitud total del curso en km y media de la pendiente; las cuales fueron extraídas de los datos generales mediante un código de selección de la librería dplyr el cual permite la unión espacial de variables seleccionadas para seguidamente diseñar un `sf` de tales variables seleccionadas unidas a los polígonos que permitirán hacer el análisis de agrupación espacial (clusters).
+
+Previo a la evaluación del diagrama cuantilar normal de las variables seleccionadas es necesario crear el objeto XY de referencia de cuadrantes para observar la dispersión de las variables analizadas. De tal evaluación cuantilar se determinó el sesgo de la variable dependiente, razón por la cual se hizo la transformación logarítmica de la misma. Hasta aquí se han creado dos objetos correspondientes, primero, al orden inicial de variables seleccionadas y segundo, arreglo de variables con la variable dependiente transformada. Posteriormente, un último objeto con el conjunto de variables completo unido al objeto de referencia cuantilar de normalidad de los datos (XY). Este último objeto, *Varselpol3*, será utilizado en todos los análisis ESDA subsiguientes para evaluar la relación vecinal y modelo espacial de predicción de la densidad de drenaje en la cuenca del río Ocoa.
+
+#ANALISIS EXPLORATORIO DE DATOS ESPACIALES (ESDA):
+
+##Autocorrelación espacial en entidades poligonales
+
+Cabe destacar la condición *sine qua non* del análisis de correlación espacial previo al análisis de vecindad, caso contrario, no se puede interpolar, ni modelar.
+
+En esta fase se aplicaron las pruebas para comprobar tanto el supuesto de normalidad de los datos (Shapiro-Wilk) como el supuesto de autocorrelación de la variable dependiente transformada (I de Moran Global). Esta ultima prueba se hizo tanto gráficamente (moran.plot) como a través de los valores de la probabilidad cuyo valor menor a 0.05 es evidencia preliminar para rechazar la hipótesis nula, la cual niega la existencia de autocorrelación espacial global.
+
+Posteriormente se evalúa la autocorrelación espacial local mediante el diagrama de dispersión de Moran a través de la función `moran.plot`. Finalmente, con el script ‘lisacluster.R’ diseñado previamente se ejecutó la función `lisamap` para generar el mapa LISA (siglas de "local indicators of spatial autocorrelation"). 
+
+En ese caso, el mapa LISA descompone el índice de Moran y verifica en cuánto contribuye cada unidad espacial a la formación del valor general, permitiendo obtener un valor de significancia para cada cluster formado por los valores similares de cada unidad espacial y sus vecinos. Estos agrupamientos o clusters de especial concentración de valores altos o bajos de una variable se conocen también como zonas calientes/frías (hot spots/cold spots, respectivamente) según se trate de una concentración de valores especialmente altos/bajos de una variable, correspondientemente (Chasco Yrigoyen, 2006:44 citado por @Autocorrelacionespacial).
+
+En ese orden de ideas, @SpatialClustering, describe como métodos para el análisis de la asociación espacial dos categorías: las que se utilizan para determinar si hay agrupación en la región de estudio (agrupamiento global) y las que intentan identificar la ubicación de las agrupaciones (agrupación local). La primera categoría proporciona una estadística única que resume el patrón espacial de la región y el segundo examina subregiones o vecindarios específicos dentro del estudio para determinar si esa área representa un grupo de valores altos (hot spot) o valores bajos (cold spot). 
+
+En consecuencia, el primer paso es definir cuales relaciones entre observaciones deben ser consideradas con peso diferente a cero, es decir, el criterio de vecindad a ser utilizado. Lo segundo es asignar pesos a las conexiones y finalmente, determinar patrones de asociación entre las variables analizadas @AppliedSpatialDataAnalysis.
+
+Para la elaboración del LISA Clúster, nos centraremos en la variable dependiente, “Logaritmo de Densidad de Drenaje (LogDD)”. Las pruebas de vecindad se hicieron por: Contigüidad, los 5 vecinos cercanos, por el peso de las observaciones vecinas en el objeto que contiene las variables seleccionadas y finalmente, en las observaciones de la data completa.
+
+#Modelización (Autoregresión espacial–SAR, por sus siglas en inglés).
+
+Luego de determinar autocorrelación espacial mediante la prueba de Moran, pasamos a evaluar la significancia de la correlación espacial entre las variables del modelo. La estimación del modelo SAR se puede abordar asumiendo la normalidad del término de error y estimando por máxima verosimilitud el siguiente modelo matricial:
+![Modelo Matricial](Imagenes/modeloSAR.JPG) donde *y* es el vector de la dependiente,*W* la matriz de vecindades, *X* la matriz de explicativas y *u* un vector de errores aleatorios normalmente distribuidos @ProyeccionesPEE. La forma usual de estimar los parámetros es por mínimos cuadrados generalizados o por máxima verosimilitud.
+
+En este análisis de modelización se exploró el grado de asociación entre la variable Densidad de drenaje (Dependiente) y las variables independientes Factor de Forma (SF), Ratio de elongación (ER), longitud total del curso en km (TS) y media de la pendiente (MS), representado mediante la función lineal DD= f (SF, ER, TS, MS). 
+
+El modelo fue sometido a las pruebas de supuestos de normalidad (Shapiro-Wilk), Heterocedasticidad (Breush-Pagan) y significancia tanto con la variable original como con la transformada.
+
+#Geoestadística – Análisis puntual: Kriging Ordinario
+El kriging es un método geoestadístico basado en la teoría de variables regionalizadas. Consiste en establecer la interpolación óptima entre los puntos de un interpolador local a la vez que cumple con los supuestos resaltados por @LibroSIG (2011:328) en el caso de kriging ordinario:
+
+1.	Normalidad de la distribución de los datos de la variable interpolada
+2.	Media y varianza constantes a lo largo del área interpolada.
+3.	Covarianza solo en dependencia de la distancia entre puntos.
+4.	Autocorrelación significativa
+5.	Error mínimo de predicción
+6.	Pesos cercanos mayores que los lejanos
+7.	La presencia de un punto cercano en una dirección dada debe restar influencia a puntos en la misma dirección, pero más lejanos.
+8.	Puntos muy cercanos con valores muy similares deben agruparse de forma que no aparezca sesgo por sobre muestreo.
+9.	La estimación del error debe hacerse en función de la estructura de los puntos (ubicación), no de los valores.
+
+Con base a lo anteriormente expuesto, se inició el proceso con la selección y georreferenciación bajo el sistema de coordenadas WGS84 UTM Zona 19, EPSG:32619. Luego se creó un objeto para delimitar el área de estudio de primer orden de red de la clasificación de Strahler y el ajuste logarítmico de la variable dependiente, densidad de drenaje, la cual corresponde a una variable de categoría discreta la cual será tomada en este estudio de práctica académica como una variable continua en virtud de que la geoestadística se aplica a variables de carácter continuo, las cuales son interpoladas/inferidas a partir de puntos de muestra.
+
+Para el procedimiento del Kriging, partiendo del supuesto de que los datos de la variable dependiente interpolada, comprobados en el análisis estadístico exploratorio de los datos, en nuestro caso, la densidad de drenaje, el paso siguiente fue el modelado del variograma de la variable dependiente arriba mencionada. Se creó el objeto `orden1logdd` que es el resultado de la variable transformada `logDD`. Posteriormente se creó el objeto `v` para representar el variograma, utilizando la función variogram. Luego de generado el variograma muestral, creamos los variogramas modelo (esférico, exponencial y gauseano con rango de 1000 metros) utilizando la función *fit.variogram* para realizar la comparación de las diversas formas con el variograma muestral de la variable dependiente ajustada por logaritmo.
+
+A los fines de estimar el error de predicción se hizo la estructura de los puntos de interpolación (cuadricula) mediante la función `grd`.
+
+\ldots
+
+#Resultados
+
+```{r, include=FALSE, echo=FALSE}
+library(sf)
+library(tidyverse)
+library(gstat)
+library(stars)
+library(tmap)
+library(ez)
+library(RColorBrewer)
+library (sp)
+library(spdep) 
+library(lmtest)
+library(spData)
+library(spatialreg)
+library(knitr)
+source('lisaclusters.R')
+```
+
+**Importación, organización de datos e interoperabilidad**
+
+```{r, include=FALSE, echo=FALSE}
+(datos <- st_read('paramsoutlet_orden1.gpkg', crs = 32619))
+(datos <- datos %>% st_difference())
+(pol1 <- st_read(dsn = 'r_stream_basins_1.geojson', crs = 32619))
+pol2 <- st_read(dsn = 'r_stream_basins_2.geojson', crs = 32619)
+pol3 <- st_read(dsn = 'r_stream_basins_3.geojson', crs = 32619)
+pol4 <- st_read(dsn = 'r_stream_basins_4.geojson', crs = 32619)
+```
+
+**Unión espacial de los datos**
+
+```{r, incluide=FALSE, warning=FALSE, message=FALSE, echo=FALSE}
+VARSEL <- datos %>% 
+  dplyr::select(
+    DD = Drainage_Density_km_over_km2,
+    SF = Shape_Factor,
+    ER = Elongation_Ratio,
+    TS = Total_Stream_Length_km,
+    MS = Mean_Slope
+  )
+
+Varselpol1 <- pol1 %>% st_join(left = F, VARSEL)
+Varselpol2 <- Varselpol1 %>% 
+  mutate(logDD = log(DD))
+
+xy <- Varselpol2 %>%
+  st_centroid() %>% 
+  mutate(x=unlist(map(geometry,1)),
+         y=unlist(map(geometry,2))) %>% 
+  st_drop_geometry() %>% 
+  select(fid, x, y)
+
+Varselpol3 <- Varselpol2 %>% 
+  inner_join(xy)
+Varselpol3
+  
+```
+
+**Panel de correlaciones de los datos**
+
+```{r, incluide=FALSE, warning=FALSE, message=FALSE, echo=FALSE}
+
+  datosnum <- datos %>%
+  st_drop_geometry() %>% 
+  select_if(is.numeric) %>% 
+  select_if(~ sum(!is.na(.))>0) %>% 
+  select_if(function(x) var(x, na.rm=T)!=0)
+
+datosnum %>% ezCor(r_size_lims = 2:3, label_size = 2)
+datosnum %>% cor
+  
+```
+
+El análisis de correlación entre la variable dependiente seleccionada (Densidad de Drenaje) y las demás sometidas a prueba, resultaron con índice mayor a 0.5 factor de forma (-0.669485228) y ratio de elongación (-0.545994239). Para dar mayor robustez al modelo que se diseñó, se incorporaron las variables: pendiente promedio (-0.176066777) y longitud total del curso principal medido en km (0.274832295).
+
+**Comprobación del supuesto de distribución normal de las observaciones de las variables analizadas**
+
+La comprobación del supuesto de normalidad se hizo mediante el gráfico cuantilar de las variables donde se incluyó el ajuste logarítmico de la variable dependiente a consecuencia del sesgo evidenciado ya que se puede tolerar la no distribución normal de las independientes, no así en la dependiente.
+
+```{r, include=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+p1 <- tm_shape(Varselpol3) +
+  tm_fill(col = "DD", style = 'jenks', palette = brewer.pal(9, name = 'Reds')) +
+  tm_borders(lwd = 0.5)
+p1
+
+p2 <- tm_shape(Varselpol3) +
+  tm_fill(col = "logDD", style = 'jenks',
+          palette = brewer.pal(9, name = 'Reds'), midpoint = NA) +
+  tm_borders(lwd = 0.5)
+
+```
+
+
+```{r, incluide=F, echo=F}
+tmap_arrange(p1, p2)
+```
+
+
+**Estadística cuantilar de variables utilizadas**
+
+```{r, incluide=FALSE, echo=FALSE}
+Varselpol3 %>% st_drop_geometry() %>%
+  gather(variable, valor, -(fid:label)) %>%
+  ggplot() + aes(sample=valor) +
+  stat_qq() + stat_qq_line() + theme_bw() +
+  theme(text = element_text(size = 14)) +
+  facet_wrap(~variable, scales = 'free')
+```
+
+Se asume como válido el supuesto de normalidad de los datos tanto en el diagrama cuantilar normal en el cual se muestra un relativo acercamiento de los puntos a una forma de la recta que representan las observaciones de cada una de las variables analizadas, como los indicadores numéricos de la prueba de Shapiro-Wilk con “p” menores a 0.05, indicando significancia y que se cumple el supuesto de distribución normal de los datos de las variables analizadas.
+
+**Seleccion de variable dependiente Densidad de Drenaje**
+
+```{r, echo=F}
+Varselpctlog <- Varselpol3 %>% mutate_each(
+  funs(PCT=round(./DD,4)*100,
+       PCTLOG=log(round(./DD,4)*100)),
+  -1, -2, -geometry, -label)
+```
+
+```{r, echo=F, warning=F}
+Varselpctlog 
+```
+
+
+```{r, message=FALSE, echo=FALSE, include=F}
+
+Varselpol3.sp <- as_Spatial(Varselpol3)
+coords <- coordinates(Varselpol3.sp)
+VecxK <- knn2nb(knearneigh(coords, k=5))
+PesoW <- nb2listw(VecxK)
+
+Varselpol_lomo <- localmoran(Varselpctlog$'logDD', listw = PesoW)
+summary(Varselpol_lomo)
+
+Varselpctlog$sVarselpctlogDD <- scale (Varselpctlog$'logDD') %>% as.vector()
+
+Varselpctlog$laglogDD <-lag.listw(PesoW, Varselpctlog$'logDD')
+
+summary(Varselpctlog$sVarselpctlogDD)
+
+summary(Varselpctlog$laglogDD)
+
+puntz <- Varselpctlog$sVarselpctlogDD
+rezag <- Varselpctlog$laglogDD
+df <- data.frame(puntz, rezag)
+```
+
+```{r, echo=F}
+moran.plot(puntz, PesoW)
+```
+
+**Comprobación de supuesto de autocorrelación de la variable dependiente transformada (I de Moran Global).**
+
+Visualización porcentual de la dispersión de la Variable seleccionada Densidad de Drenaje ajustada logarítmicamente en cuatro cuadrantes. 
+
+**Diagrama Dispersión G. Moran**
+
+```{r, echo=F}
+PesoW
+```
+
+```{r, echo=F, include=F}
+Varselpol_lomo <- localmoran(Varselpctlog$'logDD', listw = PesoW)
+summary(Varselpol_lomo)
+
+Varselpctlog$sVarselpctlogDD <- scale (Varselpctlog$'logDD') %>% as.vector()
+
+Varselpctlog$laglogDD <-lag.listw(PesoW, Varselpctlog$'logDD')
+
+summary(Varselpctlog$sVarselpctlogDD)
+
+summary(Varselpctlog$laglogDD)
+
+puntz <- Varselpctlog$sVarselpctlogDD
+rezag <- Varselpctlog$laglogDD
+df <- data.frame(puntz, rezag)
+```
+
+**Diagrama de Dispersión Moran PesoW**
+
+```{r, echo=F}
+moran.plot(puntz, PesoW)
+```
+
+```{r, echo=F}
+(gmoranw <- moran.test(na.action = na.exclude, zero.policy = T, x = log1p(datos$Drainage_Density_km_over_km2), listw = PesoW))
+```
+
+Se acepta preliminarmente la hipótesis nula la cual sostiene que **NO** hay autocorrelación espacial dado un valor de “p” > 0.05 (0.8862).
+
+**Variable dependiente original DD y ajustada logDD**
+
+```{r, echo=F}
+p1 <- tm_shape(Varselpol3) +
+  tm_fill(col = "DD", style = 'jenks', palette = brewer.pal(9, name = 'Reds')) +
+  tm_borders(lwd = 0.5)
+
+p2 <- tm_shape(Varselpol3) +
+  tm_fill(col = "logDD", style = 'jenks',
+          palette = brewer.pal(9, name = 'Reds'), midpoint = NA) +
+  tm_borders(lwd = 0.5)
+tmap_arrange(p1, p2)
+```
+
+**Evaluación de la autocorrelación espacial local de la variable dependiente transformada**
+
+```{r, echo=F, include=F}
+lisamap(objesp = Varselpol3,
+        var ='logDD',
+        pesos = PesoW,
+        tituloleyenda = 'Significancia\n("x-y", léase\ncomo "x"\nrodeado de "y"',
+        leyenda = T,
+        anchuratitulo = 1000,
+        tamanotitulo = 16,
+        fuentedatos = 'SRTM',
+        titulomapa = paste0('Clusters LISA de logDD'))
+```
+
+La aparición de parches rojos y azules indican la existencia de autocorrelación local. Los parches rojos traducen hotspots o altos valores de correlación. Los parches azules traducen coldspots e indican autocorrelación con valores bajos. Finalmente, los valores grises indican ausencia de correlación local.
+
+**Análisis de vecindad por contigüidad (vecxcont)**
+
+Resultaron 3027 regiones ya que cada observación en este caso funge como una unidad espacial independiente. La prueba de peso homogéneo de vecindad arrojó 5760 conexiones distintas de cero con un promedio de conexiones de 1.901618 para un valor porcentual de 6.28%, dos regiones con 9 conexiones y 695 regiones sin conexión alguna.
+
+```{r, include=F, echo=F}
+Vecxcont <- poly2nb(Varselpol3)
+```
+
+**Análisis de Vecindad por cantidad de los 5 vecinos más cercanos**
+
+Los valores de la data completa y la de los 5 vecinos más cercanos ya que cada observación corresponde a una unidad espacial, es decir, absolutamente todas las observaciones son vecinos entre si (In knearneigh(coords, k=5) : knearneigh: identical points found).
+
+```{r, echo=F}
+Varselpol3.sp <- as_Spatial(Varselpol3)
+coords <- coordinates(Varselpol3.sp)
+VecxK <- knn2nb(knearneigh(coords, k=5))
+```
+
+**Análisis de Vecindad por peso de observaciones vecinas en Varselpol3**
+
+Por tratarse de un espacio geográfico limitado cuyas unidades espaciales (microcuencas) corresponden a las mismas observaciones puntuales, los valores de conexiones y vecindades no difieren mucho en las diferentes combinaciones de vecindad examinadas. En este caso el número de regiones sigue siendo 3027. Las conexiones diferentes de cero son 15145, el porcentaje de conexiones no cero es 16.5% y el promedio de conexiones es de 5.
+
+```{r, echo=F, include=F}
+PesoW <- nb2listw(VecxK)
+PesoW
+
+PesowB <- nb2listw(VecxK, style = 'B')
+PesowB
+```
+
+# MODELIZACION
+
+Visualización porcentual de la dispersión de la Variable seleccionada Densidad de Drenaje ajustada logarítmicamente en cuatro cuadrantes
+
+```{r, echo=F}
+moran.plot(Varselpol3$logDD, PesoW)
+```
+
+**Comprobación del Supuesto de Autocorrelación mediante la Prueba de Moran Global:**
+
+El valor de “p” es mayor a 0.05 (valor comunmente establecido), se acepta la hipotesis nula “No hay autocorrelación espacial global” con sus vecinos en la variable dependiente en su versión original. Aunque el sistema de cuenta de la aceptación de la misma (alternative hyphotesis: greater).
+
+```{r, include=F, echo=F}
+(gmoranw <- moran.test(na.action = na.exclude, zero.policy = T, x = log1p(datos$Drainage_Density_km_over_km2), listw = PesoW))
+```
+
+```{r, echo=F}
+PesowB <- nb2listw(VecxK, style = 'B')
+
+(gmoranb <- moran.test(na.action = na.exclude, zero.policy = T, x = log1p(datos$Drainage_Density_km_over_km2), listw = PesowB))
+gmoranb <- moran.test(na.action = na.exclude, zero.policy = T, x = Varselpctlog$logDD_PCT, listw = PesowB)
+gmoranb
+```
+
+En el caso de la prueba de los supuestos de autocorrelación de la variable tanto por contigüidad como por peso coinciden por la misma causa que en el análisis de vecindad en entidades poligonales, las unidades espaciales (microcuencas) son los mismos puntos de observación, es decir, tenemos tantos modelos como puntos de observación en el análisis.
+
+**Hipotesis alternativa**
+
+```{r, echo=F, include=F}
+(gmoranwale<-moran.test(na.action = na.exclude, zero.policy = T, x=rnorm(3027),listw = PesoW))
+```
+
+El valor de “p” es menor a 0.05 (valor comunmente establecido), se rechaza la hipótesis nula “No hay autocorrelación espacial global” con sus vecinos respecto a la variable porcentual ajustada por logaritmo. 
+
+```{r, include=F, echo=F}
+Varselpctlog[(Varselpctlog$sVarselpctlog >= 0 &
+                Varselpctlog$laglogDD >= 0) &
+               (Varselpol_lomo[ , 4] <= 0.05), "quad_sig"] <- "high-high"
+
+# Cuadrante low-low
+Varselpctlog[(Varselpctlog$sVarselpctlog <= 0 &
+                Varselpctlog$laglogDD >= 0) & 
+               (Varselpol_lomo[, 4] <= 0.05), "quad_sig"] <- "low-low"
+
+#No significativas
+Varselpctlog[(Varselpol_lomo[, 4] > 0.05), "quad_sig"] <- "not signif."
+
+#Convertir a factorial
+Varselpctlog$quad_sig <- as.factor(Varselpctlog$quad_sig)
+
+# Mapa
+Varselpctlog %>% 
+  ggplot() +
+  aes(fill = quad_sig) + 
+  geom_sf(color = "white", size = .05)  +
+  theme_void() + scale_fill_brewer(palette = "Set1")
+
+#Convertir a factorial
+Varselpctlog$quad_sig <- as.factor(Varselpctlog$quad_sig)
+```
+
+**Correlación de Moral local de la variable Logarítmica**
+```{r,include=F, echo=F}
+Varselpctlog %>% 
+  ggplot() +
+  aes(fill = quad_sig) + 
+  geom_sf(color = "white", size = .05)  +
+  theme_void() + scale_fill_brewer(palette = "Set1")
+```
+
+
+**Comprobación del supuesto de normalidad (shapiro-wilk)**
+
+```{r, echo=F}
+shapiro.test(Varselpctlog$logDD_PCT)
+```
+
+El valor de “p” es menor a 0.05 (2.2e-16), se rechaza la hipotesis nula “No hay distribución normal” , en otras palabras se acepta la hipotesis alternativa “Existe distribución normal de las observaciones de la variable analizada(Varselpctlog$logDD_PCT)”.
+
+```{r, echo=F}
+shapiro.test(Varselpctlog$logDD_PCTLOG)
+```
+
+El valor de “p” es menor a 0.05 (2.2e-16), se rechaza la hipotesis nula “No hay distribución normal” , en otras palabras se acepta la hipotesis alternativa “Existe distribución normal de las observaciones de la variable analizada(Varselpctlog$logDD_PCTLOG)”.
+En sisntesis, se cumple el supuesto de normalidad en ambas versiones de la variable dependiente del modelo analizado.
+
+**Comprobación de supuesto de heterocedasticidad (prueba de Breusch-Pagan)**
+
+```{r, echo=F}
+modlin <- Varselpol3 %>%
+  select(logDD, TS, MS, SF, ER) %>%
+  st_drop_geometry() %>%
+  lm(logDD ~ ., .)
+modlin %>% summary 
+
+modlinc <- Varselpctlog %>%
+  select(contains('_PCTLOG')) %>%
+  st_drop_geometry() %>%
+  lm(logDD_PCTLOG ~ ., .)
+modlinc %>% summary
+```
+
+```{r, echo=F}
+modlinc %>% bptest
+```
+
+El valor de “p” es menor a 0.05 (3.189e-15), en la prueba de Breuch-Pagan tiene como hipótesis nula "Hay homocedasticidad", en otras palabras se acepta la hipotesis alternativa “Existe heterocedasticidad" las observaciones de las variables analizadas en el modelo lineal con la versión de ajuste logaritmico de la variable dependiente.
+
+
+##Análisis del modelo lineal**
+
+```{r, include=F, echo=F}
+modlin <- Varselpol3 %>%
+  select(logDD, TS, MS, SF, ER) %>%
+  st_drop_geometry() %>%
+  lm(logDD ~ ., .)
+```
+
+```{r, echo=F}
+modlin %>% summary
+```
+
+Todos los coeficientes de las variables del modelo han resultado signicativas (p<0.05) y el R cuadrado ajustado del modelo indica que las variables independientes analizadas explican en un 75.07% a la variable dependiente Dendidad de drenaje. Por otro lado, si el valor de las independientes fuera cero, la variable dependiente tomaria el valor 1.3355070 (intercepto).
+
+Las demás pruebas correspondientes al mismo modelo lineal utilizando versiones transformadas de las valiables(% y Log e) resultaron no significativos, es decir, las variables independientes analizadas no logran explicar el comportamiento de la variable dependiente, en tanto, no resultan útiles para la predicción de escenarios de la Densidad de Drenaje de la cuenca del Río Ocoa.
+
+# Modelo lineal común, utilizando las versiones transformadas de las variables
+```{r, echo=F, include=F}
+modlinc <- Varselpctlog %>%
+  select(contains('_PCTLOG')) %>%
+  st_drop_geometry() %>%
+  lm(logDD_PCTLOG ~ ., .)
+```
+
+```{r, echo=F}
+modlinc %>% summary
+```
+
+**Prueba de Breush Pagan del modelo lineal la variable logarítmica transformada**
+```{r, echo=F}
+modlinc %>% bptest
+```
+
+
+# Análisis del modelo espacial autoregresivo (SAR)
+```{r, echo=F, include=F, warning=F}
+sar <- Varselpctlog %>% select(contains('_PCTLOG')) %>%
+  st_drop_geometry() %>%
+  spautolm(
+    formula = logDD_PCTLOG ~ .,
+    data = .,
+    listw =PesoW)
+```
+
+```{r, echo=F}
+summary(sar)
+```
+
+##Análisis del modelo espacial autoregresivo (SAR) con el porcentaje logarítimico de las variables con radio de elongación
+
+```{r, echo=F, include=F, warning=F}
+sar2 <- Varselpctlog %>% select(contains('_PCTLOG')) %>%
+  st_drop_geometry() %>%
+  spautolm(
+    formula = logDD_PCTLOG ~ TS_PCTLOG + MS_PCTLOG + SF_PCTLOG + ER_PCTLOG,
+    data = .,
+    listw = PesoW)
+```
+
+```{r, echo=F}
+summary(sar2)
+```
+
+Ninguna de las variables independientes resultó significativa (todos los Pr resultaron mayores de 0.05) para explicar la variable dependiente.
+
+##Análisis del modelo espacial autoregresivo (SAR) con las variables de porcentaje logarítimico sin radio de elongación
+```{r, echo=F, include=F}
+Sar3 <- Varselpctlog %>% select(contains('_PCTLOG')) %>%
+  st_drop_geometry() %>%
+  spautolm(
+    formula = logDD_PCTLOG ~ TS_PCTLOG + MS_PCTLOG + SF_PCTLOG,
+    data = .,
+    listw = PesoW)
+```
+
+```{r, echo=F}
+summary(Sar3)
+```
+
+Solo la variable mean slope en su versión porcentual logarítmica (MA_PCTLOG) no es significativa para explicar la variable dependiente (Pr>0.05), adicionalmente la variable independiente `factor` de forma (SF_PCTLOG) presenta correlación negativa o inversa sobre la densidad de drenaje (-0.1952446).
+En ambos modelos SAR, el AIC (akaike information criterion) resultó significativamente alto, ya que debe ser cercano a cero.
+
+# GEOESTADISTICA Y DATOS PUNTUALES
+
+##Kriging
+El kriging es un método geoestadístico basado en la teoría de variables regionalizadas. Consiste en establecer la interpolación óptima entre los puntos de un interpolador local a la vez que cumple con los supuestos resaltados por @LibroSIG, en el caso de kriging ordinario:
+
+1.	Normalidad de la distribución de los datos de la variable interpolada
+2.	Media y varianza constantes a lo largo del área interpolada.
+3.	Covarianza solo en dependencia de la distancia entre puntos.
+4.	Autocorrelación significativa
+5.	Error mínimo de predicción
+6.	Pesos cercanos mayores que los lejanos
+7.	La presencia de un punto cercano en una dirección dada debe restar influencia a puntos en la misma dirección, pero más lejanos.
+8.	Puntos muy cercanos con valores muy similares deben agruparse de forma que no aparezca sesgo por sobre muestreo.
+9.	La estimación del error debe hacerse en función de la estructura de los puntos (ubicación), no de los valores.
+
+El primer paso para iniciar la interpolación es la definición del sistema de coordenadas destino para nuestro modelo, en nuestro caso usaremos WGS84 UTM Zona 19 (EPSG:32619) como se había mencionado anteriormente.
+
+```{r, echo=F, include=F}
+crsdestino <- 32619
+```
+
+Creamos el objeto `orden1logdd` que es el resultado de la variable transformada `logDD`.
+```{r, echo=F}
+orden1logdd <- datos %>% mutate(logDD=log(Drainage_Density_km_over_km2)) %>% select(logDD)
+```
+
+Luego creamos el objeto `v` para representar el variograma.
+
+```{r, echo=F, include=F}
+v <- gstat::variogram(logDD~1, orden1logdd)
+```
+
+```{r, echo=F}
+plot(v)
+```
+
+Después de tener nuestro objeto creado para representar el variograma, prodecedimos a la creación de los variogramas modelo esférico, exponencial y gauseano.
+
+**Variograma Modelo Esférico**
+```{r, echo=F, include=F}
+v_m <- fit.variogram(v, vgm(model = "Sph", range = 1000))
+v_m
+```
+
+```{r, echo=F}
+plot(v, v_m)
+```
+
+**Variograma Modelo Exponencial**
+```{r, echo=F, include=F}
+v_m2 <- fit.variogram(v, vgm(model = "Exp", range = 1000))
+v_m2
+```
+
+```{r, echo=F}
+plot(v, v_m2)
+```
+
+**Variograma Modelo Gauseano**
+```{r, echo=F, include=F}
+v_m3 <- fit.variogram(v, vgm(model = "Gau", range = 1000))
+v_m3
+```
+
+```{r, echo=F}
+plot(v, v_m)
+```
+
+Podemos notar que los variogramas generados no presentan un patrón autocorrelacionado significativo, puesto que la semivarianza no aumenta gradualmente, de acuerdo al supuesto de autorrelacion significativo.
+
+En este sentido, procedimos a la verificación de error de predicción de variogramas para elegir el que tenga menos error.
+
+```{r}
+attr(v_m, 'SSErr') # Esférico
+```
+
+```{r}
+attr(v_m2, 'SSErr') # Exponencial
+```
+
+```{r}
+attr(v_m3, 'SSErr') # Gauseano
+```
+
+Luego de los resueltos obtenidos y atendiendo al supuesto de error mínimo de predicción, se eligió el modelo esférico con un error de 2.496814e-07 .
+
+Teniendo el elegido el modelo a utilizar, procedimos a la definición del cuadrante de la cuenca río Ocoa para la interpolacion.
+
+```{r, echo=F, include=F}
+grd <- st_bbox(orden1logdd) %>%
+  st_as_stars(dx = 500) %>% #5000 metros=5km de resolución espacial
+  st_set_crs(crsdestino)
+grd
+
+#plot(grd)
+```
+
+## Kriging Ordinario
+
+Para hacer la interpolación a través del kriging ordinario se utilizó la función `krige`
+
+```{r, echo=F, include=F}
+#k <- krige(formula = logDD~1, locations = orden1logdd, newdata = grd, model = v_m)
+k <- readRDS('k.RDS')
+```
+
+```{r, echo=F}
+plot(k)
+```
+
+Se utilizó ggplot para representar el objeto stars.
+
+```{r}
+ggplot() +
+  geom_stars(data = k, aes(fill = var1.pred, x = x, y = y)) + 
+  scale_fill_gradient(low="#deebf7", high="#3182bd") +
+  geom_sf(data = st_cast(Varselpol3, "MULTILINESTRING")) +
+  geom_sf(data = orden1logdd) +
+  geom_sf_text(data = Varselpol3, aes(label=''), check_overlap = T, size = 0.5) +
+  theme_bw()
+```
+
+```{r}
+ggplot() +
+  geom_stars(data = exp(k), aes(fill = var1.pred, x = x, y = y)) + 
+  scale_fill_gradient(low="#deebf7", high="#3182bd", trans = 'log10') +
+  geom_sf(data = st_cast(Varselpol3, "MULTILINESTRING")) +
+  geom_sf(data = orden1logdd) +
+  geom_sf_text(data = Varselpol3, aes(label=''), check_overlap = T, size = 0.5) +
+  theme_bw()
+```
+
+Al realizar la interpolación del mapa de la cuenca río Ocoa, se pudo observar una distribucion homogénea de la variable seleccionada densidad de drenaje en toda el área de estudio (ver figura var1.pred).
+
+\ldots
+
+# Información de soporte
+
+Material de Apoyo incluido en el repositorio de la maestría Teledeteccion y Ciencias de la Informacion Geografica.
+Asesoría con el profesor José Ramón Martínez.
+
+
+\ldots
+
+# *Script* reproducible
+
+# LIBRERIAS A UTILIZAR 
+
+```{r, eval=F}
+library(sf)
+library(tidyverse)
+library(gstat)
+library(stars)
+library(tmap)
+library(ez)
+library(RColorBrewer)
+library (sp)
+library(spdep) 
+library(lmtest)
+library(spData)
+library(spatialreg)
+library(knitr)
+source('lisaclusters.R')
+```
+
+IMPORTACION, ORGANIZACION DE DATOS E INTERPORABILIDAD
+
+# Cargar datos de variables
+
+```{r}
+(datos <- st_read('paramsoutlet_orden1.gpkg', crs = 32619))
+(datos <- datos %>% st_difference())
+(pol1 <- st_read(dsn = 'r_stream_basins_1.geojson', crs = 32619))
+pol2 <- st_read(dsn = 'r_stream_basins_2.geojson', crs = 32619)
+pol3 <- st_read(dsn = 'r_stream_basins_3.geojson', crs = 32619)
+pol4 <- st_read(dsn = 'r_stream_basins_4.geojson', crs = 32619)
+
+```
+
+Orden de Red Cuencas 1, clasificación de Strahler
+
+```{r, warning=FALSE, message=FALSE,}
+datos %>% dplyr::filter(Max_order_Strahler==1)
+
+datos %>%
+  select_if(is.numeric) %>%
+  gather(variable, valor, -geom) %>%
+  st_drop_geometry() %>% 
+  group_by(variable) %>% 
+  summarise(m=mean(valor, na.rm=T))
+
+datos %>%
+  select_if(is.numeric) %>%
+  gather(variable, valor, -geom) %>% 
+  tm_shape() + tm_dots(col = 'valor') + tm_facets(by='variable', 
+    free.coords = F, free.scales = T)
+
+```
+
+Tabla cols numéricas, con varianza 
+```{r, warning=FALSE, message=FALSE,}
+datosnum <- datos %>%
+  st_drop_geometry() %>% 
+  select_if(is.numeric) %>% 
+  select_if(~ sum(!is.na(.))>0) %>% 
+  select_if(function(x) var(x, na.rm=T)!=0)
+
+```
+
+Evaluación de correlación entre las variables como criterio de selección
+```{r}
+datosnum %>% ezCor(r_size_lims = 2:3, label_size = 2)
+datosnum %>% cor
+
+```
+
+Union espacial de las variables seleccionadas
+
+```{r, warning=FALSE, message=FALSE,}
+VARSEL <- datos %>% 
+  dplyr::select(
+    DD = Drainage_Density_km_over_km2,
+    SF = Shape_Factor,
+    ER = Elongation_Ratio,
+    TS = Total_Stream_Length_km,
+    MS = Mean_Slope
+  )
+
+Varselpol1 <- pol1 %>% st_join(left = F, VARSEL)
+Varselpol2 <- Varselpol1 %>% 
+  mutate(logDD = log(DD))
+
+```
+
+
+Creación de objeto XY con atributos del objeto Varselpol2 mediante el centroide de los polígonos
+
+```{r, warning=FALSE, message=FALSE,}
+xy <- Varselpol2 %>%
+  st_centroid() %>% 
+  mutate(x=unlist(map(geometry,1)),
+         y=unlist(map(geometry,2))) %>% 
+  st_drop_geometry() %>% 
+  select(fid, x, y)
+
+```
+
+Creación del objeto Varselpol3 mediante unión de XY y Varselpol2
+
+```{r, warning=FALSE, message=FALSE,}
+Varselpol3 <- Varselpol2 %>% 
+  inner_join(xy)
+Varselpol3
+
+```
+
+**VECINDAD. Análisis de vecindad por contiguidad**
+```{r}
+Varselpol3 <- Varselpol2 %>% 
+  inner_join(xy)
+Varselpol3
+
+```
+
+
+Análisis de Vecindad por cantidad de los 5 vecinos más cercanos
+```{r}
+Varselpol3.sp <- as_Spatial(Varselpol3)
+coords <- coordinates(Varselpol3.sp)
+VecxK <- knn2nb(knearneigh(coords, k=5))
+```
+
+Análisis de Vecindad por peso de observaciones vecinas en Varselpol3
+```{r}
+PesoW <- nb2listw(VecxK)
+PesoW
+
+PesowB <- nb2listw(VecxK, style = 'B')
+PesowB
+
+```
+
+Análisis de Vecindad por peso de observaciones vecinas en la data completa
+```{r}
+datos <- datos %>% st_difference()
+coords <- coordinates(as_Spatial(datos))
+nb <- knn2nb(knearneigh(coords, k = 5))
+summary(nb)
+
+```
+
+ANALISIS ESDA
+```{r}
+p1 <- tm_shape(Varselpol3) +
+  tm_fill(col = "DD", style = 'jenks', palette = brewer.pal(9, name = 'Reds')) +
+  tm_borders(lwd = 0.5)
+p1
+
+p2 <- tm_shape(Varselpol3) +
+  tm_fill(col = "logDD", style = 'jenks',
+          palette = brewer.pal(9, name = 'Reds'), midpoint = NA) +
+  tm_borders(lwd = 0.5)
+tmap_arrange(p1, p2)
+
+Varselpol3 %>% st_drop_geometry() %>%
+  gather(variable, valor, -(fid:label)) %>%
+  ggplot() + aes(sample=valor) +
+  stat_qq() + stat_qq_line() + theme_bw() +
+  theme(text = element_text(size = 14)) +
+  facet_wrap(~variable, scales = 'free')
+
+Varselpol3 %>% st_drop_geometry() %>%
+  gather(variable, valor, -(fid:label)) %>% group_by(variable) %>%
+  summarise(prueba_normalidad=shapiro.test(valor)$p.value)
+
+lisamap(objesp = Varselpol3,
+        var ='logDD',
+        pesos = PesoW,
+        tituloleyenda = 'Significancia\n("x-y", léase\ncomo "x"\nrodeado de "y"',
+        leyenda = T,
+        anchuratitulo = 1000,
+        tamanotitulo = 16,
+        fuentedatos = 'SRTM',
+        titulomapa = paste0('Clusters LISA de logDD'))
+
+```
+
+MODELIZACION
+
+Variable seleccionada Densidad de Drenaje
+```{r}
+Varselpctlog <- Varselpol3 %>% mutate_each(
+  funs(PCT=round(./DD,4)*100,
+       PCTLOG=log(round(./DD,4)*100)),
+  -1, -2, -geometry, -label)
+
+Varselpctlog
+
+```
+
+Comprobando autocorrelación mediante la prueba moran global
+
+```{r}
+moran.plot(Varselpol3$logDD, PesoW)
+(gmoranw <- moran.test(na.action = na.exclude, zero.policy = T,
+            x = log1p(datos$Drainage_Density_km_over_km2), listw = PesoW))
+
+(gmoranb <- moran.test(na.action = na.exclude, zero.policy = T,
+            x = log1p(datos$Drainage_Density_km_over_km2), listw = PesowB))
+
+gmoranb <- moran.test(na.action = na.exclude, zero.policy = T, 
+           x = Varselpctlog$logDD_PCT, listw = PesowB)
+gmoranb
+
+gmoranwl <- moran.test(na.action = na.exclude, zero.policy = T, 
+            x = Varselpctlog$logDD_PCTLOG, listw = PesoW )
+gmoranwl
+
+gmoranbl <- moran.test(na.action = na.exclude, zero.policy = T, 
+            x = Varselpctlog$logDD_PCTLOG, listw = PesowB)
+gmoranbl
+
+(gmoranwale<-moran.test(na.action = na.exclude, zero.policy = T, 
+             x=rnorm(3027),listw = PesoW))
+
+```
+
+Evaluación del supuesto de normalidad
+
+```{r}
+shapiro.test(Varselpctlog$logDD_PCT)
+shapiro.test(Varselpctlog$logDD_PCTLOG)
+
+```
+
+Modelo lineal
+```{r, eval=F}
+modlin <- Varselpol3 %>%
+  select(logDD, TS, MS, SF, ER) %>%
+  st_drop_geometry() %>%
+  lm(logDD ~ ., .)
+modlin %>% summary 
+
+modlinc <- Varselpctlog %>%
+  select(contains('_PCTLOG')) %>%
+  st_drop_geometry() %>%
+  lm(logDD_PCTLOG ~ ., .)
+modlinc %>% summary
+
+modlinc %>% bptest
+```
+
+Análisis del modelo espacial autoregresivo (SAR)
+```{r, echo=F, include=F, warning=F}
+sar <- Varselpctlog %>% select(contains('_PCTLOG')) %>%
+  st_drop_geometry() %>%
+  spautolm(
+    formula = logDD_PCTLOG ~ .,
+    data = .,
+    listw =PesoW)
+summary(sar)
+```
+
+Análisis del modelo espacial autoregresivo (SAR) con el porcentaje logarítimico de las variables con radio de elongación
+
+```{r, echo=F, include=F, warning=F}
+sar2 <- Varselpctlog %>% select(contains('_PCTLOG')) %>%
+  st_drop_geometry() %>%
+  spautolm(
+    formula = logDD_PCTLOG ~ TS_PCTLOG + MS_PCTLOG + SF_PCTLOG + ER_PCTLOG,
+    data = .,
+    listw = PesoW)
+summary(sar2)
+```
+
+Análisis del modelo espacial autoregresivo (SAR) con las variables de porcentaje logarítimico sin radio de elongación
+```{r, echo=F, include=F}
+Sar3 <- Varselpctlog %>% select(contains('_PCTLOG')) %>%
+  st_drop_geometry() %>%
+  spautolm(
+    formula = logDD_PCTLOG ~ TS_PCTLOG + MS_PCTLOG + SF_PCTLOG,
+    data = .,
+    listw = PesoW)
+summary(Sar3)
+```
+
+AUTOCORRELACION ESPACIAL LOCAL
+
+```{r}
+Varselpol_lomo <- localmoran(Varselpctlog$'logDD', listw = PesoW)
+summary(Varselpol_lomo)
+
+Varselpctlog$sVarselpctlogDD <- scale (Varselpctlog$'logDD') %>% as.vector()
+
+Varselpctlog$laglogDD <-lag.listw(PesoW, Varselpctlog$'logDD')
+
+summary(Varselpctlog$sVarselpctlogDD)
+
+summary(Varselpctlog$laglogDD)
+
+puntz <- Varselpctlog$sVarselpctlogDD
+rezag <- Varselpctlog$laglogDD
+df <- data.frame(puntz, rezag)
+
+moran.plot(puntz, PesoW)
+
+```
+
+Diagrama de dispersión de Moran en ggplot
+```{r}
+ggplot(df, aes(puntz, rezag)) +
+  geom_point() + geom_smooth(method = 'lm', se = F) +
+  geom_hline(yintercept = 0, linetype = 'dashed') +
+  geom_vline(xintercept = 0, linetype = 'dashed')
+
+```
+
+Variable nueva sobre significancia de la correlación local, rellena con NAs
+
+```{r}
+Varselpctlog$quad_sig <- NA
+```
+
+Cuadrante high-high 
+
+```{r}
+Varselpctlog[(Varselpctlog$sVarselpctlog >= 0 &
+                Varselpctlog$laglogDD >= 0) &
+               (Varselpol_lomo[, 4] <= 0.05), "quad_sig"] <- "high-high"
+
+```
+
+Cuadrante low-low
+```{r}
+Varselpctlog[(Varselpctlog$sVarselpctlog <= 0 &
+                Varselpctlog$laglogDD >= 0) & 
+               (Varselpol_lomo[, 4] <= 0.05), "quad_sig"] <- "low-low"
+
+```
+
+Cuadrante high-low
+```{r}
+Varselpctlog[(Varselpctlog$sVarselpctlog >= 0 & 
+                Varselpctlog$laglogDD <= 0) & 
+               (Varselpol_lomo[, 4] <= 0.05), "quad_sig"] <- "high-low"
+
+```
+
+Cuadrante low-high
+
+```{r}
+Varselpctlog[(Varselpctlog$sVarselpctlog <= 0 & 
+                Varselpctlog$laglogDD >= 0) & 
+               (Varselpol_lomo[, 4] <= 0.05), "quad_sig"] <- "low-high"
+
+```
+
+No significativas
+```{r}
+Varselpctlog[(Varselpol_lomo[, 4] > 0.05), "quad_sig"] <- "not signif."
+
+```
+
+Convertir a factorial
+
+```{r}
+Varselpctlog$quad_sig <- as.factor(Varselpctlog$quad_sig)
+
+```
+
+Mapa Significancia
+```{r}
+Varselpctlog %>% 
+  ggplot() +
+  aes(fill = quad_sig) + 
+  geom_sf(color = "white", size = .05)  +
+  theme_void() + scale_fill_brewer(palette = "Set1")
+
+```
+
+
+KRIGING ORDINARIO
+
+Asignación del sistema de referencia destino
+```{r}
+crsdestino <- 32619
+```
+
+Creación de objeto para la interpolación
+
+```{r}
+orden1logdd <- datos %>% mutate(logDD=log(Drainage_Density_km_over_km2)) %>% select(logDD)
+```
+
+VARIOGRAMA MODELO
+
+Creación del objeto v para representar el variograma
+```{r}
+v <- variogram(logDD~1, orden1logdd)
+```
+
+Variograma modelo Esférico
+```{r}
+v_m <- fit.variogram(v, vgm(model = "Sph", range = 1000))
+v_m
+plot(v, v_m)
+
+```
+
+Variograma modelo Exponencial
+```{r}
+v_m2 <- fit.variogram(v, vgm(model = "Exp", range = 1000))
+v_m2
+plot(v, v_m2)
+
+```
+
+Variograma modelo Gauseano
+```{r}
+v_m3 <- fit.variogram(v, vgm(model = "Gau", range = 1000))
+v_m3
+plot(v, v_m3, plot.numbers = T)
+plot(v, v_m3)
+
+```
+
+
+Atributos de Error
+```{r}
+attr(v_m, 'SSErr') # Este fue el elegido por tener el menor valor
+
+attr(v_m2, 'SSErr') 
+
+attr(v_m3, 'SSErr')
+```
+
+Creación de cuadrícula para la interpolación
+```{r}
+grd <- st_bbox(orden1logdd) %>%
+  st_as_stars(dx = 500) %>% #5000 metros= 0.5 km de resolución espacial
+  st_set_crs(crsdestino)
+grd
+plot(grd)
+
+```
+
+Mapa Kriging ordinario
+```{r}
+#k <- krige(formula = logDD~1, locations = orden1logdd, newdata = grd, model = v_m)
+# Se ejecutó el kriging y se guardó en memoria como un objeto RDS, para luego ser leído a través de la función readRDS
+k <- readRDS('k.RDS')
+plot(k)
+```
+
+Representación ggplot objeto stars
+
+```{r}
+ggplot() +
+  geom_stars(data = k, aes(fill = var1.pred, x = x, y = y)) + 
+  scale_fill_gradient(low="#deebf7", high="#3182bd") +
+  geom_sf(data = st_cast(Varselpol3, "MULTILINESTRING")) +
+  geom_sf(data = orden1logdd) +
+  geom_sf_text(data = Varselpol3, aes(label=''), check_overlap = T, size = 1) +
+  theme_bw()
+
+ggplot() +
+  geom_stars(data = exp(k), aes(fill = var1.pred, x = x, y = y)) + 
+  scale_fill_gradient(low="#deebf7", high="#3182bd", trans = 'log10') +
+  geom_sf(data = st_cast(Varselpol3, "MULTILINESTRING")) +
+  geom_sf(data = orden1logdd) +
+  geom_sf_text(data = Varselpol3, aes(label=''), check_overlap = T, size = 1) +
+  theme_bw()
+```
+
+\ldots
+
+# Conclusiones
+
+Las conclusiones de este ejercicio académico se limita a los análisis de los resultados de cada una de las pruebas de supuestos aplicadas. No es posible hacer inferencias conclusivas dado el limitado número de variables utilizadas en el análisis en relación con la gran cantidad de variables intervinientes en la dinámica de una cuenca hidrográfica que deberían tomarse en cuenta para diseñar un modelo de predicción de esta índole.
+
+\ldots
+
+# Referencias
+
+---

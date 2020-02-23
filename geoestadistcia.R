@@ -19,6 +19,9 @@ library (sp)
 library(spdep) 
 library(lmtest)
 library(spData)
+library(ggplot2)
+library(knitr)
+library(spatial)
 source('lisaclusters.R')
 
 ## IMPORTACION, ORGANIZACION DE DATOS E INTEROPERABILIDAD
@@ -65,7 +68,7 @@ VARSEL <- datos %>%
     ER = Elongation_Ratio,
     TS = Total_Stream_Length_km,
     MS = Mean_Slope
-  )
+  )  
 
 Varselpol1 <- pol1 %>% st_join(left = F, VARSEL)
 Varselpol2 <- Varselpol1 %>% 
@@ -83,7 +86,9 @@ xy <- Varselpol2 %>%
 ## Creación del objeto Varselpol3 mediante unión de XY y Varselpol2
 Varselpol3 <- Varselpol2 %>% 
   inner_join(xy)
-Varselpol3
+Varselpol3  %>% 
+  st_drop_geometry()
+Varselpol3 
 
 # VECINDAD
 
@@ -92,6 +97,7 @@ Vecxcont <- poly2nb(Varselpol3)
 summary(Vecxcont)
 
 ## Análisis de Vecindad por cantidad de los 5 vecinos más cercanos
+
 Varselpol3.sp <- as_Spatial(Varselpol3)
 coords <- coordinates(Varselpol3.sp)
 VecxK <- knn2nb(knearneigh(coords, k=5))
@@ -260,11 +266,10 @@ ggplot(df, aes(puntz, rezag)) +
 # Variable nueva sobre significancia de la correlación local, rellena con NAs
 Varselpctlog$quad_sig <- NA
 
-
-# Cuadrante high-high quadrant
+##Cuadrante high-high quadrant
 Varselpctlog[(Varselpctlog$sVarselpctlog >= 0 &
                 Varselpctlog$laglogDD >= 0) &
-               (Varselpol_lomo[, 4] <= 0.05), "quad_sig"] <- "high-high"
+               (Varselpol_lomo[ , 4] <= 0.05), "quad_sig"] <- "high-high"
 
 
 # Cuadrante low-low
@@ -272,18 +277,18 @@ Varselpctlog[(Varselpctlog$sVarselpctlog <= 0 &
                 Varselpctlog$laglogDD >= 0) & 
                (Varselpol_lomo[, 4] <= 0.05), "quad_sig"] <- "low-low"
 
-# Cuadrante high-low
-Varselpctlog[(Varselpctlog$sVarselpctlog >= 0 & 
-                Varselpctlog$laglogDD <= 0) & 
-               (Varselpol_lomo[, 4] <= 0.05), "quad_sig"] <- "high-low"
-
-# Cuadrante low-high
-Varselpctlog[(Varselpctlog$sVarselpctlog <= 0 & 
-                Varselpctlog$laglogDD >= 0) & 
-               (Varselpol_lomo[, 4] <= 0.05), "quad_sig"] <- "low-high"
-
-# No significativas
+#No significativas
 Varselpctlog[(Varselpol_lomo[, 4] > 0.05), "quad_sig"] <- "not signif."
+
+#Convertir a factorial
+Varselpctlog$quad_sig <- as.factor(Varselpctlog$quad_sig)
+
+# Mapa
+Varselpctlog %>% 
+  ggplot() +
+  aes(fill = quad_sig) + 
+  geom_sf(color = "white", size = .05)  +
+  theme_void() + scale_fill_brewer(palette = "Set1")
 
 #Convertir a factorial
 Varselpctlog$quad_sig <- as.factor(Varselpctlog$quad_sig)
@@ -294,7 +299,27 @@ Varselpctlog %>%
   aes(fill = quad_sig) + 
   geom_sf(color = "white", size = .05)  +
   theme_void() + scale_fill_brewer(palette = "Set1")
+  
 
+# modelo espacial autorregresivo,
+
+sar <- varselpol3log %>% select(contains('_PCTLOG')) %>%
+  st_drop_geometry() %>%
+  spautolm(
+    formula = slogDD_PCTLOG ~ .,
+    data = .,
+    listw = PesoW)
+summary(sar)
+
+modlin %>% bptest()
+modlin %>% plot()
+
+
+modSAR <- Varselpol3 %>%
+  select(logDD, TS, MS, SF, ER) %>%
+  st_drop_geometry() %>%
+  spautolm(logDD ~ ., ., listw = PesoW)
+modSAR %>% summary
 
 
 
@@ -307,17 +332,18 @@ crsdestino <- 32619
 
 ## Los variogramas muestrales 
 ## A partir del variograma muestral, generamos un variograma modelo que será el que utlizará
-## la función krige para realizar la interpolación
+## la función kriging para realizar la interpolación
 
 ## Creamos el objeto orden1logdd que es el resultado de la variable transformada logDD 
 
 orden1logdd <- datos %>% mutate(logDD=log(Drainage_Density_km_over_km2)) %>% select(logDD)
 
 ## Creamos el objeto v para representar el variograma v
-v <- variogram(logDD~1, orden1logdd)
+v <- gstat::variogram(logDD~1, orden1logdd)
+  
 plot(v)
 
-## Variograma Modelo se utlizará la función krige para realizar la interpolación
+## Variograma Modelo se utlizará la función kriging para realizar la interpolación
 ## Se necesita un variograma que crezca de inmediato, por esto vamos a utilizar el variograma modelo 
 
 ## Variograma modelo Esferico con rango de 1000 metros
@@ -362,7 +388,7 @@ attr(v_m3, 'SSErr')
 ## [1] 6.398799e-07
 
 grd <- st_bbox(orden1logdd) %>%
-  st_as_stars(dx = 100) %>% #1000 metros=1km de resolución espacial
+  st_as_stars(dx = 500) %>% #1000 metros=1km de resolución espacial
   st_set_crs(crsdestino)
 grd
 
